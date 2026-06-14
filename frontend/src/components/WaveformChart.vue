@@ -2,7 +2,7 @@
   <div class="flex flex-col gap-2">
     <div v-if="store.manualPickMode" class="bg-yellow-500/20 border border-yellow-500 rounded-lg px-4 py-2 text-sm text-yellow-300 flex items-center justify-between">
       <span>
-        🎯 手动补拾取模式：点击波形添加
+        🎯 手动补拾取模式：点击波形任意位置添加
         <span :class="store.manualPickMode === 'P' ? 'text-red-400 font-bold' : 'text-blue-400 font-bold'">
           {{ store.manualPickMode }} 波
         </span>
@@ -12,32 +12,39 @@
         退出模式
       </button>
     </div>
-    <div v-for="(comp, idx) in components" :key="comp.key" class="bg-gray-900 rounded-xl p-3">
+    <div
+      v-for="(comp, idx) in components"
+      :key="comp.key"
+      class="bg-gray-900 rounded-xl p-3"
+      @click="(e: MouseEvent) => onContainerClick(e, idx)"
+      :class="{ 'manual-pick-mode': !!store.manualPickMode }"
+    >
       <h3 class="text-xs text-gray-400 mb-1">{{ comp.label }}</h3>
       <v-chart
         :option="getChartOption(comp.key, comp.color)"
-        class="h-40"
+        class="h-40 waveform-chart"
         autoresize
-        :class="{ 'cursor-crosshair': !!store.manualPickMode }"
-        @click="(e: any) => onChartClick(e, comp.key)"
-        ref="chartRefs"
+        :ref="(el: any) => setChartRef(el, idx)"
       />
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
+import { ref, computed } from 'vue'
 import { use } from 'echarts/core'
 import { CanvasRenderer } from 'echarts/renderers'
 import { LineChart } from 'echarts/charts'
 import { GridComponent, TooltipComponent, MarkLineComponent } from 'echarts/components'
 import VChart from 'vue-echarts'
 import { useSeismicStore } from '../store/seismic'
-import type { EChartsOption } from 'echarts'
+import type { EChartsOption, ECharts } from 'echarts'
 
 use([CanvasRenderer, LineChart, GridComponent, TooltipComponent, MarkLineComponent])
 
 const store = useSeismicStore()
+
+const chartInstances = ref<ECharts[]>([])
 
 const components = [
   { key: 'bhz' as const, label: 'BHZ (垂直分量)', color: '#22d3ee' },
@@ -45,10 +52,41 @@ const components = [
   { key: 'bhe' as const, label: 'BHE (东西分量)', color: '#34d399' },
 ]
 
-function onChartClick(params: any, _key: 'bhz' | 'bhn' | 'bhe') {
-  if (!store.manualPickMode || !params || typeof params.value?.[0] !== 'number') return
-  const clickTime = params.value[0] as number
-  store.addManualPick(store.manualPickMode, clickTime)
+const sortedPicks = computed(() => {
+  return [...store.picks].sort((a, b) => a.time - b.time)
+})
+
+function setChartRef(el: any, idx: number) {
+  if (el) {
+    chartInstances.value[idx] = (el as any).getEchartsInstance()
+  }
+}
+
+function onContainerClick(e: MouseEvent, idx: number) {
+  if (!store.manualPickMode) return
+  const chart = chartInstances.value[idx]
+  if (!chart) return
+
+  const container = e.currentTarget as HTMLElement
+  const chartEl = container.querySelector('.waveform-chart') as HTMLElement
+  if (!chartEl) return
+
+  const rect = chartEl.getBoundingClientRect()
+  const x = e.clientX - rect.left
+  const y = e.clientY - rect.top
+
+  const point = chart.convertFromPixel('grid', [x, y])
+  if (!point || typeof point[0] !== 'number') return
+
+  let clickTime = point[0] as number
+  const wf = store.waveform
+  if (wf) {
+    const maxTime = wf.time[wf.time.length - 1]
+    if (clickTime < 0) clickTime = 0
+    if (clickTime > maxTime) clickTime = maxTime
+  }
+
+  store.addManualPick(store.manualPickMode, Number(clickTime.toFixed(3)))
 }
 
 function getChartOption(key: 'bhz' | 'bhn' | 'bhe', color: string): EChartsOption {
@@ -57,7 +95,7 @@ function getChartOption(key: 'bhz' | 'bhn' | 'bhe', color: string): EChartsOptio
   const time = wf.time.filter((_, i) => i % step === 0)
   const data = wf[key].filter((_, i) => i % step === 0)
 
-  const markLines = store.picks.map(p => {
+  const markLines = sortedPicks.value.map(p => {
     const isManual = p.method === 'Manual'
     return {
       xAxis: p.time,
@@ -108,7 +146,7 @@ function getChartOption(key: 'bhz' | 'bhn' | 'bhe', color: string): EChartsOptio
 </script>
 
 <style scoped>
-.cursor-crosshair {
+.manual-pick-mode {
   cursor: crosshair;
 }
 </style>
