@@ -1,6 +1,5 @@
 <template>
   <div class="flex h-screen">
-    <!-- Sidebar -->
     <div class="w-72 bg-gray-900 p-4 flex flex-col gap-3 border-r border-gray-800 overflow-y-auto">
       <h1 class="text-lg font-bold text-cyan-400">地震波形 P/S 波分析</h1>
 
@@ -34,15 +33,71 @@
         </button>
       </div>
 
+      <!-- Manual Pick Controls -->
+      <div class="bg-gray-800 rounded-xl p-3 space-y-2">
+        <h3 class="text-cyan-300 font-bold text-sm">手动补拾取</h3>
+        <p class="text-gray-500 text-xs">自动结果不理想时，可直接点击波形手动补录</p>
+        <div class="flex gap-2">
+          <button
+            @click="store.setManualPickMode(store.manualPickMode === 'P' ? null : 'P')"
+            class="flex-1 py-2 rounded text-sm font-medium transition-colors"
+            :class="store.manualPickMode === 'P'
+              ? 'bg-red-500 text-white ring-2 ring-red-300'
+              : 'bg-gray-700 text-red-400 hover:bg-gray-600'"
+          >
+            📍 标记 P 波
+          </button>
+          <button
+            @click="store.setManualPickMode(store.manualPickMode === 'S' ? null : 'S')"
+            class="flex-1 py-2 rounded text-sm font-medium transition-colors"
+            :class="store.manualPickMode === 'S'
+              ? 'bg-blue-500 text-white ring-2 ring-blue-300'
+              : 'bg-gray-700 text-blue-400 hover:bg-gray-600'"
+          >
+            📍 标记 S 波
+          </button>
+        </div>
+        <button
+          v-if="store.picks.length > 0"
+          @click="store.clearPicks()"
+          class="w-full bg-gray-700 py-1.5 rounded text-xs text-gray-400 hover:bg-red-900 hover:text-red-300 transition-colors"
+        >
+          清空所有拾取
+        </button>
+      </div>
+
       <!-- Picks -->
       <div class="bg-gray-800 rounded-xl p-3">
-        <h3 class="text-cyan-300 font-bold text-sm mb-2">震相拾取结果</h3>
-        <div v-for="p in store.picks" :key="p.id" class="flex justify-between bg-gray-700 rounded p-2 mb-1 text-sm">
-          <span :class="p.type === 'P' ? 'text-red-400' : 'text-blue-400'">{{ p.type }} 波</span>
-          <span>{{ p.time.toFixed(2) }}s</span>
-          <span class="text-gray-400">{{ (p.confidence * 100).toFixed(0) }}%</span>
+        <div class="flex justify-between items-center mb-2">
+          <h3 class="text-cyan-300 font-bold text-sm">震相拾取结果</h3>
+          <span v-if="store.picks.length" class="text-xs text-gray-500">{{ store.picks.length }} 个</span>
         </div>
-        <div v-if="!store.picks.length" class="text-gray-600 text-xs">加载数据后运行拾取</div>
+        <div v-for="p in store.picks" :key="p.id" class="bg-gray-700 rounded p-2 mb-1 text-sm">
+          <div class="flex justify-between items-center">
+            <div class="flex items-center gap-2">
+              <span
+                :class="p.type === 'P' ? 'text-red-400' : 'text-blue-400'"
+                class="font-bold"
+              >
+                {{ p.type }} 波
+                <span v-if="p.method === 'Manual'" class="text-xs text-yellow-400">手动</span>
+                <span v-else class="text-xs text-gray-500">自动</span>
+              </span>
+            </div>
+            <button
+              @click="store.removePick(p.id)"
+              class="text-gray-500 hover:text-red-400 text-xs px-1"
+              title="删除"
+            >
+              ✕
+            </button>
+          </div>
+          <div class="flex justify-between items-center mt-1">
+            <span class="text-gray-300 font-mono">{{ p.time.toFixed(2) }}s</span>
+            <span class="text-gray-400 text-xs">置信 {{ (p.confidence * 100).toFixed(0) }}%</span>
+          </div>
+        </div>
+        <div v-if="!store.picks.length" class="text-gray-600 text-xs">加载数据后运行拾取或手动标记</div>
       </div>
 
       <!-- Stations -->

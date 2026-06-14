@@ -10,6 +10,7 @@ export const useSeismicStore = defineStore('seismic', () => {
   const ltaWindow = ref(10.0)
   const threshold = ref(3.5)
   const isLoading = ref(false)
+  const manualPickMode = ref<'P' | 'S' | null>(null)
   const events = ref<SeismicEvent[]>([
     { id: '1', magnitude: 4.2, depth: 12.5, originTime: '2025-01-15T08:23:41Z', location: '四川雅安' },
     { id: '2', magnitude: 3.8, depth: 8.3, originTime: '2025-01-14T14:12:05Z', location: '云南大理' },
@@ -131,9 +132,42 @@ export const useSeismicStore = defineStore('seismic', () => {
     }
   }
 
+  function addManualPick(type: 'P' | 'S', time: number) {
+    const existing = picks.value.find(p => p.type === type)
+    const newPick: PhasePick = {
+      id: `manual_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+      type,
+      time,
+      confidence: 1.0,
+      method: 'Manual'
+    }
+    if (existing) {
+      picks.value = picks.value.map(p => p.type === type ? newPick : p)
+    } else {
+      picks.value = [...picks.value, newPick]
+    }
+  }
+
+  function removePick(id: string) {
+    picks.value = picks.value.filter(p => p.id !== id)
+  }
+
+  function clearPicks() {
+    picks.value = []
+  }
+
+  function updatePickTime(id: string, time: number) {
+    picks.value = picks.value.map(p => p.id === id ? { ...p, time } : p)
+  }
+
+  function setManualPickMode(mode: 'P' | 'S' | null) {
+    manualPickMode.value = mode
+  }
+
   return {
     waveform, picks, selectedStation, staWindow, ltaWindow, threshold,
-    isLoading, events, stations,
-    loadMockData, staLtaPicking, uploadAndAnalyze, generateMockWaveform
+    isLoading, events, stations, manualPickMode,
+    loadMockData, staLtaPicking, uploadAndAnalyze, generateMockWaveform,
+    addManualPick, removePick, clearPicks, updatePickTime, setManualPickMode
   }
 })
